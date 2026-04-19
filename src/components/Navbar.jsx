@@ -15,18 +15,32 @@ export default function Navbar() {
             Vastralaya
           </h1>
           <p className="text-[10px] text-black/40 tracking-[0.3em] uppercase">
-            Women's Fashion
+            Platform
           </p>
         </Link>
 
         {/* Actions */}
-        <div className="flex items-center gap-4">
-          <Link 
-            to="/track" 
-            className="text-[10px] text-black/40 hover:text-black uppercase tracking-widest font-medium transition-colors hidden md:block"
-          >
-            Track Order
-          </Link>
+        <div className="flex items-center gap-6">
+          <div className="hidden md:flex items-center gap-6">
+            <Link 
+              to="/" 
+              className="text-[10px] tracking-widest uppercase font-medium text-black/60 hover:text-black transition-colors"
+            >
+              Business Info
+            </Link>
+            <Link 
+              to="/shop" 
+              className="text-[10px] tracking-widest uppercase font-medium text-black/60 hover:text-black transition-colors"
+            >
+              Live Demo
+            </Link>
+            <Link 
+              to="/track" 
+              className="text-[10px] tracking-widest uppercase font-medium text-black/60 hover:text-black transition-colors"
+            >
+              Track Order
+            </Link>
+          </div>
 
           {/* Cart */}
           <button

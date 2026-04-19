@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { getProducts, getCategories } from '../api'
 import ProductCard from '../components/ProductCard'
 
@@ -172,6 +173,20 @@ export default function Home() {
           </p>
         </div>
       </footer>
+
+      {/* Floating CTA */}
+      <div className="fixed bottom-8 right-8 z-[60]">
+        <Link 
+          to="/"
+          className="flex items-center gap-3 bg-black text-white px-6 py-4 border border-gold/30 shadow-2xl hover:bg-gold hover:text-black transition-all group"
+        >
+          <div className="text-xl group-hover:scale-125 transition-transform">🚀</div>
+          <div className="text-left">
+            <p className="text-[8px] uppercase tracking-widest text-gold/60 leading-none mb-1">Business</p>
+            <p className="text-[10px] uppercase tracking-widest font-bold leading-none">Get Your Store</p>
+          </div>
+        </Link>
+      </div>
 
     </div>
   )

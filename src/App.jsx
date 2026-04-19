@@ -7,12 +7,14 @@ import Home from './pages/Home'
 import ProductDetail from './pages/ProductDetail'
 import OrderSuccess from './pages/OrderSuccess'
 import TrackOrder from './pages/TrackOrder'
+import AboutBusiness from './pages/AboutBusiness'
 import AdminLogin from './pages/admin/AdminLogin'
 import AdminLayout from './pages/admin/AdminLayout'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminProducts from './pages/admin/AdminProducts'
 import AdminOrders from './pages/admin/AdminOrders'
 import AdminCategories from './pages/admin/AdminCategories'
+import AdminPreview from './pages/admin/AdminPreview'
 import useAdminStore from './store/adminStore'
 
 function ProtectedRoute({ children }) {
@@ -27,10 +29,12 @@ function CustomerLayout() {
       <Navbar />
       <CartSidebar />
       <Routes>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<AboutBusiness />} />
+        <Route path="/shop" element={<Home />} />
         <Route path="/products/:id" element={<ProductDetail />} />
         <Route path="/order-success" element={<OrderSuccess />} />
         <Route path="/track" element={<TrackOrder />} />
+        <Route path="/about-business" element={<AboutBusiness />} />
       </Routes>
     </>
   )
@@ -42,6 +46,7 @@ export default function App() {
       <Toast />
       <Routes>
         <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin/preview" element={<AdminPreview />} />
         <Route
           path="/admin"
           element={
