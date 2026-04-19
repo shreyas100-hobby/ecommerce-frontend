@@ -1,9 +1,10 @@
 // src/pages/ProductDetail.jsx
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getProduct } from '../api'
+import { getProduct, getProducts } from '../api'
 import useCartStore from '../store/cartStore'
 import { showToast } from '../components/Toast'
+import ProductCard from '../components/ProductCard'
 
 export default function ProductDetail() {
   const { id } = useParams()
@@ -11,19 +12,44 @@ export default function ProductDetail() {
   const { items, addItem, updateQuantity, openCart } = useCartStore()
 
   const [product, setProduct] = useState(null)
+  const [relatedProducts, setRelatedProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   // Gallery
   const [activeImage, setActiveImage] = useState(0)
+  
+  // Image Zoom
+  const [isZoomed, setIsZoomed] = useState(false)
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+
+  const handleMouseMove = (e) => {
+    const { left, top, width, height } = e.currentTarget.getBoundingClientRect()
+    const x = ((e.clientX - left) / width) * 100
+    const y = ((e.clientY - top) / height) * 100
+    setMousePosition({ x, y })
+  }
 
   // Variant selection
   const [selectedColor, setSelectedColor] = useState(null)
   const [selectedSize, setSelectedSize] = useState(null)
 
   useEffect(() => {
+    // Scroll to top on id change
+    window.scrollTo(0, 0)
     loadProduct()
   }, [id])
+
+  useEffect(() => {
+    if (product?.variants?.length > 0 && !selectedColor) {
+      const uniqueColors = [...new Set(product.variants.map(v => v.color))]
+      // Try to find a color with stock
+      const availableColor = uniqueColors.find(color => 
+        product.variants.some(v => v.color === color && v.stock_quantity > 0)
+      )
+      setSelectedColor(availableColor || uniqueColors[0])
+    }
+  }, [product])
 
   const loadProduct = async () => {
     setLoading(true)
@@ -31,6 +57,24 @@ export default function ProductDetail() {
     try {
       const { data } = await getProduct(id)
       setProduct(data.data)
+
+      // Fetch related products (same category or all)
+      const relatedRes = await getProducts(data.data.category_id || '')
+      const filtered = (relatedRes.data.data || [])
+        .filter(p => p.id !== id)
+        .slice(0, 4) // Show up to 4 related products
+      
+      // If we didn't get enough related products from the category, fetch some random ones
+      if (filtered.length < 4) {
+         const allRes = await getProducts()
+         const more = (allRes.data.data || [])
+           .filter(p => p.id !== id && !filtered.find(fp => fp.id === p.id))
+           .slice(0, 4 - filtered.length)
+         setRelatedProducts([...filtered, ...more])
+      } else {
+         setRelatedProducts(filtered)
+      }
+
     } catch {
       setError('Product not found')
     } finally {
@@ -138,19 +182,27 @@ export default function ProductDetail() {
           {/* ── Left: Image Gallery ── */}
           <div className="space-y-3">
 
-            {/* Main Image */}
-            <div className="relative bg-offwhite overflow-hidden aspect-[3/4]">
+            {/* Main Image with Zoom */}
+            <div 
+              className="relative bg-offwhite overflow-hidden aspect-[3/4] cursor-crosshair group"
+              onMouseMove={handleMouseMove}
+              onMouseEnter={() => setIsZoomed(true)}
+              onMouseLeave={() => setIsZoomed(false)}
+            >
               <img
                 src={images[activeImage]?.url || images[0]?.url}
                 alt={product.name}
-                className="w-full h-full object-cover"
+                className={`w-full h-full object-cover transition-transform duration-200 ease-out ${isZoomed ? 'scale-[2.5]' : 'scale-100'}`}
+                style={{
+                  transformOrigin: isZoomed ? `${mousePosition.x}% ${mousePosition.y}%` : 'center center'
+                }}
                 onError={e =>
                   e.target.src = `https://picsum.photos/seed/${product.id}/800`
                 }
               />
 
               {discount && (
-                <span className="absolute top-4 left-4 bg-gold text-black text-[10px] font-semibold px-3 py-1.5 tracking-widest uppercase">
+                <span className="absolute top-4 left-4 bg-gold text-black text-[10px] font-semibold px-3 py-1.5 tracking-widest uppercase z-10 pointer-events-none">
                   {discount}% Off
                 </span>
               )}
@@ -159,22 +211,20 @@ export default function ProductDetail() {
               {images.length > 1 && (
                 <>
                   <button
-                    onClick={() =>
-                      setActiveImage(i =>
-                        i === 0 ? images.length - 1 : i - 1
-                      )
-                    }
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/80 hover:bg-white flex items-center justify-center text-black transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setActiveImage(i => i === 0 ? images.length - 1 : i - 1)
+                    }}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/80 hover:bg-white flex items-center justify-center text-black transition-colors z-20 pointer-events-auto"
                   >
                     ‹
                   </button>
                   <button
-                    onClick={() =>
-                      setActiveImage(i =>
-                        i === images.length - 1 ? 0 : i + 1
-                      )
-                    }
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/80 hover:bg-white flex items-center justify-center text-black transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setActiveImage(i => i === images.length - 1 ? 0 : i + 1)
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/80 hover:bg-white flex items-center justify-center text-black transition-colors z-20 pointer-events-auto"
                   >
                     ›
                   </button>
@@ -184,15 +234,15 @@ export default function ProductDetail() {
 
             {/* Thumbnails */}
             {images.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto pb-1">
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                 {images.map((img, index) => (
                   <button
                     key={index}
                     onClick={() => setActiveImage(index)}
-                    className={`shrink-0 w-16 h-20 border-2 overflow-hidden transition-colors
+                    className={`shrink-0 w-[72px] h-[96px] overflow-hidden transition-all duration-300
                       ${activeImage === index
-                        ? 'border-black'
-                        : 'border-transparent hover:border-black/30'
+                        ? 'opacity-100 border-2 border-black scale-95'
+                        : 'opacity-50 hover:opacity-100 border-2 border-transparent'
                       }`}
                   >
                     <img
@@ -242,13 +292,6 @@ export default function ProductDetail() {
             </div>
 
             <div className="w-12 h-px bg-black/10" />
-
-            {/* Description */}
-            {product.description && (
-              <p className="text-black/60 text-sm leading-relaxed">
-                {product.description}
-              </p>
-            )}
 
             {/* ── Color Selector ── */}
             {hasVariants && colors.length > 0 && (
@@ -395,22 +438,70 @@ export default function ProductDetail() {
               )}
             </div>
 
-            {/* Policies */}
-            <div className="border-t border-black/10 pt-4 space-y-2">
-              {[
-                '📦 Free delivery on orders above ₹999',
-                '↩️ Easy returns within 7 days',
-                '💬 Order confirmation via WhatsApp',
-              ].map(text => (
-                <p key={text} className="text-xs text-black/40">
-                  {text}
+            {/* Accordions */}
+            <div className="pt-8 space-y-0 border-t border-black/10 mt-8">
+              <Accordion title="Product Details" defaultOpen={true}>
+                <p className="mb-2">
+                  {product.description || "Designed for modern elegance, this beautiful piece features a timeless silhouette that effortlessly elevates any wardrobe."}
                 </p>
-              ))}
+                <ul className="list-disc pl-4 space-y-1 mt-3">
+                  <li>Regular fit</li>
+                  <li>Ethically sourced materials</li>
+                  <li>Designed in-house</li>
+                  <li>SKU: {product.id.slice(0, 8).toUpperCase()}</li>
+                </ul>
+              </Accordion>
+              
+              <Accordion title="Shipping & Returns">
+                <ul className="space-y-2">
+                  <li className="flex items-start gap-2">
+                    <span>📦</span>
+                    <span>Free standard shipping on orders over ₹999. Usually arrives in 3-5 business days.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span>↩️</span>
+                    <span>Easy 7-day returns for all unworn items with tags attached.</span>
+                  </li>
+                </ul>
+              </Accordion>
+              
+              <Accordion title="Fabric & Care">
+                <p className="mb-2">Premium quality fabric designed for comfort and durability.</p>
+                <ul className="list-disc pl-4 space-y-1">
+                  <li>Machine wash cold with like colors</li>
+                  <li>Do not bleach</li>
+                  <li>Tumble dry low or hang to dry</li>
+                  <li>Iron on low heat if needed</li>
+                </ul>
+              </Accordion>
             </div>
 
           </div>
         </div>
       </div>
+
+      {/* ── Related Products ── */}
+      {relatedProducts.length > 0 && (
+        <div className="max-w-6xl mx-auto px-6 py-16 border-t border-black/5">
+          <div className="flex items-center justify-between mb-10">
+            <h2 className="font-display text-2xl md:text-3xl text-black">
+              You May Also Like
+            </h2>
+            <button 
+              onClick={() => navigate('/')}
+              className="text-[10px] uppercase tracking-widest text-black/40 hover:text-black transition-colors"
+            >
+              View All
+            </button>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 lg:gap-8">
+            {relatedProducts.map(rp => (
+              <ProductCard key={rp.id} product={rp} />
+            ))}
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
@@ -454,6 +545,33 @@ function ProductNotFound({ navigate }) {
         >
           Back to Shop
         </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Accordion ─────────────────────────────────────────────────
+function Accordion({ title, children, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="border-b border-black/10">
+      <button 
+        onClick={() => setOpen(!open)}
+        className="w-full py-4 flex justify-between items-center text-xs tracking-widest uppercase font-medium text-black group"
+      >
+        <span>{title}</span>
+        <span className="text-lg font-light text-black/40 group-hover:text-black transition-colors">
+          {open ? '−' : '+'}
+        </span>
+      </button>
+      <div 
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${
+          open ? 'max-h-96 opacity-100 mb-4' : 'max-h-0 opacity-0'
+        }`}
+      >
+        <div className="text-sm text-black/60 font-light leading-relaxed">
+          {children}
+        </div>
       </div>
     </div>
   )

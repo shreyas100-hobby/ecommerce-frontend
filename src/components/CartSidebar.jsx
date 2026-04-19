@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useCartStore from '../store/cartStore'
-import { createOrder } from '../api'
+import { createOrder, getProducts } from '../api'
 import { showToast } from './Toast'
 
 export default function CartSidebar() {
@@ -17,10 +17,33 @@ export default function CartSidebar() {
 
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [suggestedProducts, setSuggestedProducts] = useState([])
+  
+  useEffect(() => {
+    if (isOpen) {
+      loadSuggestions()
+    }
+  }, [isOpen])
+
+  const loadSuggestions = async () => {
+    try {
+      const { data } = await getProducts()
+      // Filter out items already in cart
+      const filtered = (data.data || [])
+        .filter(p => !items.find(item => item.id === p.id))
+        .slice(0, 4)
+      setSuggestedProducts(filtered)
+    } catch (err) {
+      console.error('Failed to load suggestions', err)
+    }
+  }
+
   const [form, setForm] = useState({
     customer_name: '',
     customer_phone: '',
+    customer_email: '',
     customer_address: '',
+    google_maps_link: '',
     payment_method: 'cod',
     note: '',
   })
@@ -35,10 +58,32 @@ export default function CartSidebar() {
   const resetForm = () => setForm({
     customer_name: '',
     customer_phone: '',
+    customer_email: '',
     customer_address: '',
+    google_maps_link: '',
     payment_method: 'cod',
     note: '',
   })
+
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      showToast('Geolocation is not supported by your browser', 'error')
+      return
+    }
+
+    showToast('Getting location...', 'info')
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords
+        const link = `https://www.google.com/maps?q=${latitude},${longitude}`
+        setForm(prev => ({ ...prev, google_maps_link: link }))
+        showToast('Location captured!', 'success')
+      },
+      () => {
+        showToast('Unable to retrieve your location', 'error')
+      }
+    )
+  }
 
   const handlePlaceOrder = async () => {
     if (!form.customer_name.trim()) {
@@ -135,12 +180,27 @@ export default function CartSidebar() {
                 <p className="font-display text-xl text-black mb-2">
                   Your bag is empty
                 </p>
-                <p className="text-black/40 text-sm">
+                <p className="text-black/40 text-sm mb-8">
                   Add something beautiful
                 </p>
+                <button
+                  onClick={closeCart}
+                  className="px-8 py-3 bg-black text-white text-[10px] tracking-widest uppercase font-medium hover:bg-gold hover:text-black transition-colors"
+                >
+                  Continue Shopping
+                </button>
               </div>
             ) : (
               <div className="space-y-3">
+                <div className="flex justify-between items-center mb-2">
+                   <p className="text-[10px] text-black/40 uppercase tracking-widest font-medium">Items</p>
+                   <button 
+                    onClick={closeCart}
+                    className="text-[10px] text-black/60 hover:text-black underline tracking-widest uppercase"
+                   >
+                     + Add More
+                   </button>
+                </div>
                 {items.map(item => (
                   <div
                     key={item.cartKey}
@@ -216,6 +276,37 @@ export default function CartSidebar() {
                     </div>
                   </div>
                 ))}
+
+                {/* Suggestions */}
+                {suggestedProducts.length > 0 && (
+                  <div className="mt-10 pt-6 border-t border-black/5">
+                    <p className="text-[10px] text-black/40 uppercase tracking-widest font-medium mb-4">
+                      You May Also Like
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {suggestedProducts.map(p => (
+                        <div 
+                          key={p.id}
+                          onClick={() => {
+                            navigate(`/products/${p.id}`)
+                            closeCart()
+                          }}
+                          className="group cursor-pointer"
+                        >
+                          <div className="aspect-[3/4] overflow-hidden bg-offwhite mb-2">
+                            <img 
+                              src={p.images?.[0]?.url || p.image_url} 
+                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                              alt={p.name}
+                            />
+                          </div>
+                          <p className="text-[11px] text-black truncate">{p.name}</p>
+                          <p className="text-[10px] text-gold font-medium mt-0.5">₹{p.price.toFixed(2)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -239,18 +330,33 @@ export default function CartSidebar() {
               />
             </div>
 
-            <div>
-              <label className="block text-[10px] font-medium text-black/50 mb-1.5 tracking-widest uppercase">
-                Phone Number <span className="text-gold">*</span>
-              </label>
-              <input
-                type="tel"
-                name="customer_phone"
-                value={form.customer_phone}
-                onChange={handleChange}
-                placeholder="10 digit number"
-                className={inputClass}
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-medium text-black/50 mb-1.5 tracking-widest uppercase">
+                  Phone Number <span className="text-gold">*</span>
+                </label>
+                <input
+                  type="tel"
+                  name="customer_phone"
+                  value={form.customer_phone}
+                  onChange={handleChange}
+                  placeholder="10 digit number"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium text-black/50 mb-1.5 tracking-widest uppercase">
+                  Email ID (Optional)
+                </label>
+                <input
+                  type="email"
+                  name="customer_email"
+                  value={form.customer_email}
+                  onChange={handleChange}
+                  placeholder="your@email.com"
+                  className={inputClass}
+                />
+              </div>
             </div>
 
             <div>
@@ -261,39 +367,63 @@ export default function CartSidebar() {
                 name="customer_address"
                 value={form.customer_address}
                 onChange={handleChange}
-                placeholder="Your full address"
-                rows={3}
+                placeholder="Building, Street, Area..."
+                rows={2}
                 className={`${inputClass} resize-none`}
               />
             </div>
 
             <div>
-              <label className="block text-[10px] font-medium text-black/50 mb-1.5 tracking-widest uppercase">
-                Payment Method
-              </label>
-              <select
-                name="payment_method"
-                value={form.payment_method}
-                onChange={handleChange}
-                className={inputClass}
-              >
-                <option value="cod">Cash on Delivery</option>
-                <option value="upi">UPI</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-medium text-black/50 mb-1.5 tracking-widest uppercase">
-                Special Note
-              </label>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="block text-[10px] font-medium text-black/50 tracking-widest uppercase">
+                  Location (Link or Pin)
+                </label>
+                <button 
+                  type="button"
+                  onClick={handleGetLocation}
+                  className="text-[10px] text-gold hover:text-black font-semibold uppercase tracking-widest flex items-center gap-1"
+                >
+                  📍 Share Location
+                </button>
+              </div>
               <input
                 type="text"
-                name="note"
-                value={form.note}
+                name="google_maps_link"
+                value={form.google_maps_link}
                 onChange={handleChange}
-                placeholder="Any special instructions?"
+                placeholder="Google Maps link or auto-filled"
                 className={inputClass}
               />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-medium text-black/50 mb-1.5 tracking-widest uppercase">
+                  Payment Method
+                </label>
+                <select
+                  name="payment_method"
+                  value={form.payment_method}
+                  onChange={handleChange}
+                  className={inputClass}
+                >
+                  <option value="cod">Cash on Delivery</option>
+                  <option value="upi">UPI</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium text-black/50 mb-1.5 tracking-widest uppercase">
+                  Special Note
+                </label>
+                <input
+                  type="text"
+                  name="note"
+                  value={form.note}
+                  onChange={handleChange}
+                  placeholder="Instructions?"
+                  className={inputClass}
+                />
+              </div>
             </div>
 
             {/* Order Summary */}
@@ -326,7 +456,7 @@ export default function CartSidebar() {
                 ))}
               </div>
               <div className="flex justify-between font-semibold text-black pt-3 mt-2 border-t border-black/10">
-                <span>Total</span>
+                <span>Total Amount</span>
                 <span className="text-gold">
                   ₹{totalPrice.toFixed(2)}
                 </span>
@@ -342,7 +472,7 @@ export default function CartSidebar() {
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="font-display text-lg text-black">
-                  Total
+                  Total Payable
                 </span>
                 <span className="font-semibold text-black text-lg">
                   ₹{totalPrice.toFixed(2)}
@@ -353,7 +483,7 @@ export default function CartSidebar() {
                 disabled={items.length === 0}
                 className="w-full py-4 bg-black hover:bg-gold hover:text-black text-white text-xs tracking-widest uppercase font-medium transition-colors disabled:bg-black/20 disabled:cursor-not-allowed"
               >
-                Proceed to Order
+                Proceed to Checkout
               </button>
             </div>
           ) : (
@@ -369,7 +499,7 @@ export default function CartSidebar() {
                 disabled={loading}
                 className="flex-[2] py-4 bg-black hover:bg-gold hover:text-black text-white text-xs tracking-widest uppercase font-medium transition-colors disabled:bg-black/30"
               >
-                {loading ? 'Placing...' : 'Place Order'}
+                {loading ? 'Placing...' : 'Confirm Order'}
               </button>
             </div>
           )}

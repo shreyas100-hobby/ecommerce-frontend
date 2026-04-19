@@ -1,12 +1,31 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
+import { showToast } from '../components/Toast'
+import { generateOrderPDF } from '../utils/generatePDF'
 
 export default function OrderSuccess() {
   const { state } = useLocation()
   const navigate = useNavigate()
+  const hasDownloaded = useRef(false)
 
   useEffect(() => {
-    if (!state?.orderData) navigate('/')
+    if (!state?.orderData) {
+      navigate('/')
+      return
+    }
+
+    // Auto download bill once
+    if (!hasDownloaded.current) {
+      setTimeout(() => {
+        try {
+          generateOrderPDF(state.orderData.order)
+          showToast('Invoice downloaded automatically', 'success')
+        } catch (err) {
+          console.error('PDF error:', err)
+        }
+      }, 1000)
+      hasDownloaded.current = true
+    }
   }, [state, navigate])
 
   if (!state?.orderData) return null
@@ -37,12 +56,23 @@ export default function OrderSuccess() {
         <div className="bg-cream border border-black/8 p-5 text-left mb-6">
 
           <div className="flex justify-between items-center mb-4 pb-4 border-b border-black/8">
-            <span className="text-[10px] text-black/40 uppercase tracking-widest">
-              Order No.
-            </span>
-            <span className="font-semibold text-black text-sm">
-              {order.order_number}
-            </span>
+            <div>
+              <span className="text-[10px] text-black/40 uppercase tracking-widest block">
+                Order No.
+              </span>
+              <span className="font-semibold text-black text-sm">
+                {order.order_number}
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(order.order_number)
+                showToast('Order ID copied!', 'success')
+              }}
+              className="text-[10px] text-gold hover:text-black font-semibold uppercase tracking-widest border border-gold/20 px-2 py-1"
+            >
+              Copy
+            </button>
           </div>
 
           <div className="space-y-2.5 mb-4">
@@ -76,22 +106,39 @@ export default function OrderSuccess() {
 
         </div>
 
-        {/* WhatsApp CTA */}
-        <a
-          href={whatsapp_url}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center justify-center gap-3 w-full py-4 bg-black hover:bg-gold hover:text-black text-white text-xs tracking-widest uppercase font-medium transition-colors mb-3"
-        >
-          <span>💬</span>
-          Confirm on WhatsApp
-        </a>
+        {/* Action Buttons */}
+        <div className="space-y-3 mb-8">
+          <a
+            href={whatsapp_url}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center justify-center gap-3 w-full py-4 bg-black hover:bg-gold hover:text-black text-white text-xs tracking-widest uppercase font-medium transition-colors"
+          >
+            <span>💬</span>
+            Confirm on WhatsApp
+          </a>
+
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => generateOrderPDF(order)}
+              className="py-4 border border-black text-black text-[10px] tracking-widest uppercase font-medium hover:bg-black hover:text-white transition-colors"
+            >
+              📄 Download Bill
+            </button>
+            <button
+              onClick={() => navigate('/track')}
+              className="py-4 border border-black text-black text-[10px] tracking-widest uppercase font-medium hover:bg-black hover:text-white transition-colors"
+            >
+              📍 Track Order
+            </button>
+          </div>
+        </div>
 
         <button
           onClick={() => navigate('/')}
-          className="w-full py-4 border border-black/20 text-black/50 text-xs tracking-widest uppercase font-medium hover:border-black hover:text-black transition-colors"
+          className="w-full py-4 bg-cream border border-black/10 text-black/40 text-[10px] tracking-widest uppercase font-medium hover:text-black hover:border-black transition-colors"
         >
-          Continue Shopping
+          Return to Home
         </button>
 
         <div className="w-12 h-0.5 bg-gold mx-auto mt-8" />

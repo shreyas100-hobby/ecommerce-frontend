@@ -6,6 +6,7 @@ import Toast from './components/Toast'
 import Home from './pages/Home'
 import ProductDetail from './pages/ProductDetail'
 import OrderSuccess from './pages/OrderSuccess'
+import TrackOrder from './pages/TrackOrder'
 import AdminLogin from './pages/admin/AdminLogin'
 import AdminLayout from './pages/admin/AdminLayout'
 import AdminDashboard from './pages/admin/AdminDashboard'
@@ -29,6 +30,7 @@ function CustomerLayout() {
         <Route path="/" element={<Home />} />
         <Route path="/products/:id" element={<ProductDetail />} />
         <Route path="/order-success" element={<OrderSuccess />} />
+        <Route path="/track" element={<TrackOrder />} />
       </Routes>
     </>
   )
