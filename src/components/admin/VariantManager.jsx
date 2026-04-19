@@ -21,6 +21,28 @@ export default function VariantManager({ variants = [], onChange }) {
   const [stockGrid, setStockGrid] = useState({})
   // { 'Red': { 'S': 0, 'M': 0 }, 'Blue': { 'S': 0, 'M': 5 } }
 
+  // Initialize from props on mount
+  useEffect(() => {
+    if (variants && variants.length > 0) {
+      const initialColors = [...new Set(variants.map(v => v.color))]
+      const initialSizes = [...new Set(variants.map(v => v.size))]
+      
+      const grid = {}
+      initialColors.forEach(c => {
+        grid[c] = {}
+        initialSizes.forEach(s => {
+          const v = variants.find(variant => variant.color === c && variant.size === s)
+          grid[c][s] = v ? v.stock_quantity : 0
+        })
+      })
+      
+      setColors(initialColors)
+      setSelectedSizes(initialSizes)
+      setStockGrid(grid)
+      setSizeType('custom')
+    }
+  }, []) // Empty dependency array to only run on mount
+
   // Sync grid → variants output whenever grid changes
   useEffect(() => {
     if (colors.length === 0 || selectedSizes.length === 0) {
