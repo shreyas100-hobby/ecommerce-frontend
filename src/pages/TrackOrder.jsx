@@ -49,7 +49,7 @@ export default function TrackOrder() {
               type="text"
               value={orderNumber}
               onChange={(e) => setOrderNumber(e.target.value)}
-              placeholder="e.g. ORD-20240101-1234"
+              placeholder="e.g. ORD-20260420-1234"
               className="flex-1 border border-black/20 bg-white px-4 py-3 text-sm text-black outline-none focus:border-black transition-colors"
               required
             />
@@ -129,12 +129,21 @@ export default function TrackOrder() {
           )}
         </div>
 
-        <button
-          onClick={() => navigate('/')}
-          className="mt-8 text-[10px] text-black/40 hover:text-black uppercase tracking-widest font-medium transition-colors block mx-auto"
-        >
-          ← Back to Shopping
-        </button>
+        <div className="flex gap-4 justify-center mt-8">
+          <button
+            onClick={() => navigate('/shop')}
+            className="text-[10px] text-black/40 hover:text-black uppercase tracking-widest font-medium transition-colors"
+          >
+            ← Back to Catalog
+          </button>
+          <span className="text-black/20">|</span>
+          <button
+            onClick={() => navigate('/')}
+            className="text-[10px] text-black/40 hover:text-black uppercase tracking-widest font-medium transition-colors"
+          >
+            Business Info
+          </button>
+        </div>
       </div>
     </div>
   )

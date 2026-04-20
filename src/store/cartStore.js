@@ -10,23 +10,25 @@ const useCartStore = create(
 
       addItem: (product, variant, quantity = 1) => {
         const items = get().items
-
-        // Cart key = productId + variantId (unique per variant)
-        const cartKey = variant
-          ? `${product.id}_${variant.id}`
-          : product.id
-
+        const cartKey = variant ? `${product.id}_${variant.id}` : product.id
         const existing = items.find(i => i.cartKey === cartKey)
+        const stock = variant ? variant.stock_quantity : product.stock_quantity
 
         if (existing) {
+          const newQty = existing.quantity + quantity
+          if (newQty > stock) return false // Deny if exceeds stock
+
           set({
             items: items.map(i =>
               i.cartKey === cartKey
-                ? { ...i, quantity: i.quantity + quantity }
+                ? { ...i, quantity: newQty }
                 : i
             )
           })
+          return true
         } else {
+          if (quantity > stock) return false
+
           const imageURL = product.images?.[0]?.url || product.image_url || ''
           set({
             items: [
@@ -41,9 +43,11 @@ const useCartStore = create(
                 color: variant?.color || '',
                 size: variant?.size || '',
                 quantity,
+                stock, // Store stock limit
               }
             ]
           })
+          return true
         }
       },
 
@@ -51,12 +55,20 @@ const useCartStore = create(
         set({ items: get().items.filter(i => i.cartKey !== cartKey) }),
 
       updateQuantity: (cartKey, quantity) => {
+        const items = get().items
+        const item = items.find(i => i.cartKey === cartKey)
+        if (!item) return
+
         if (quantity <= 0) {
           get().removeItem(cartKey)
           return
         }
+
+        // Validate against stored stock
+        if (quantity > item.stock) return
+
         set({
-          items: get().items.map(i =>
+          items: items.map(i =>
             i.cartKey === cartKey ? { ...i, quantity } : i
           )
         })

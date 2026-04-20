@@ -24,12 +24,15 @@ export default function ProductCard({ product }) {
   const handleAdd = (e) => {
     e.stopPropagation()
     if (hasVariants) {
-      // Go to product page to select variant
       navigate(`/products/${product.id}`)
       return
     }
-    addItem(product, null)
-    showToast(`${product.name} added to bag`, 'success')
+    const success = addItem(product, null)
+    if (success) {
+      showToast(`${product.name} added to bag`, 'success')
+    } else {
+      showToast('Stock limit reached!', 'error')
+    }
   }
 
   return (

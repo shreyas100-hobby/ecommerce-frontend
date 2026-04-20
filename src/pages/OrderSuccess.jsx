@@ -135,10 +135,10 @@ export default function OrderSuccess() {
         </div>
 
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/shop')}
           className="w-full py-4 bg-cream border border-black/10 text-black/40 text-[10px] tracking-widest uppercase font-medium hover:text-black hover:border-black transition-colors"
         >
-          Return to Home
+          Continue Shopping
         </button>
 
         <div className="w-12 h-0.5 bg-gold mx-auto mt-8" />

@@ -135,9 +135,13 @@ export default function ProductDetail() {
       return
     }
 
-    addItem(product, selectedVariant)
-    showToast(`${product.name} added to bag`, 'success')
-    openCart()
+    const success = addItem(product, selectedVariant)
+    if (success) {
+      showToast(`${product.name} added to bag`, 'success')
+      openCart()
+    } else {
+      showToast('Cannot add more. Stock limit reached.', 'error')
+    }
   }
 
   // ── Discount ──────────────────────────────────────
@@ -157,10 +161,10 @@ export default function ProductDetail() {
       <div className="max-w-6xl mx-auto px-6 py-4">
         <div className="flex items-center gap-2 text-[10px] text-black/30 uppercase tracking-widest">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/shop')}
             className="hover:text-black transition-colors"
           >
-            Home
+            Catalog
           </button>
           <span>/</span>
           {product.category_name && (
@@ -375,12 +379,27 @@ export default function ProductDetail() {
                   ))}
                 </div>
 
-                {/* Stock warning */}
+                {/* Stock warning for variants */}
                 {selectedVariant && variantStock > 0 && variantStock <= 5 && (
-                  <p className="text-xs text-red-500 mt-2">
+                  <p className="text-xs text-red-500 mt-2 italic font-medium">
                     ⚠ Only {variantStock} left in stock!
                   </p>
                 )}
+              </div>
+            )}
+
+            {/* ── Main Product Stock (No Variants) ── */}
+            {!hasVariants && product.is_available && (
+              <div className="pt-2">
+                {product.stock_quantity > 0 && product.stock_quantity <= 10 ? (
+                  <p className="text-xs text-red-500 italic font-medium">
+                    ⚠ Hurry! Only {product.stock_quantity} pieces remaining
+                  </p>
+                ) : product.stock_quantity > 0 ? (
+                  <p className="text-[10px] text-green-600 uppercase tracking-widest font-bold">
+                    ✓ In Stock
+                  </p>
+                ) : null}
               </div>
             )}
 
@@ -488,7 +507,7 @@ export default function ProductDetail() {
               You May Also Like
             </h2>
             <button 
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/shop')}
               className="text-[10px] uppercase tracking-widest text-black/40 hover:text-black transition-colors"
             >
               View All
@@ -540,10 +559,10 @@ function ProductNotFound({ navigate }) {
           This product may no longer be available
         </p>
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/shop')}
           className="px-8 py-3 bg-black text-white text-xs tracking-widests uppercase hover:bg-gold hover:text-black transition-colors"
         >
-          Back to Shop
+          Back to Catalog
         </button>
       </div>
     </div>
