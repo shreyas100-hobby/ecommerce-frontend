@@ -30,20 +30,28 @@ export default function AdminProducts() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [activeTab, setActiveTab] = useState('basic') // basic | images | variants
+  const [activeTab, setActiveTab] = useState('basic')
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { 
+    loadData() 
+  }, [])
 
   const loadData = async () => {
     setLoading(true)
+    setError('')
     try {
+      // ✅ Add timestamp to bypass cache
+      const timestamp = Date.now()
       const [productsRes, categoriesRes] = await Promise.all([
-        adminGetProducts(),
-        getCategories(),
+        adminGetProducts(`?_t=${timestamp}`),
+        getCategories(`?_t=${timestamp}`),
       ])
+      
+      console.log('📦 Products loaded:', productsRes.data.data?.length || 0)
       setProducts(productsRes.data.data || [])
       setCategories(categoriesRes.data.data || [])
-    } catch {
+    } catch (err) {
+      console.error('❌ Failed to load data:', err)
       setError('Failed to load data')
     } finally {
       setLoading(false)
@@ -52,29 +60,29 @@ export default function AdminProducts() {
 
   const openAdd = () => {
     setEditProduct(null)
-    setForm(emptyForm)
+    setForm({ ...emptyForm }) // ✅ Create fresh copy
     setActiveTab('basic')
     setError('')
     setShowModal(true)
   }
 
-    const openEdit = (product) => {
+  const openEdit = (product) => {
+    console.log('✏️ Editing product:', product.id, product)
     setEditProduct(product)
     setForm({
-        name: product.name || '',
-        description: product.description || '',
-        price: product.price || '',
-        original_price: product.original_price || '',
-        category_id: product.category_id || '',
-        is_available: product.is_available ?? true,
-        // ✅ Load existing images and variants
-        images: product.images || [],
-        variants: product.variants || [],
+      name: product.name || '',
+      description: product.description || '',
+      price: product.price?.toString() || '', // ✅ Convert to string for input
+      original_price: product.original_price?.toString() || '',
+      category_id: product.category_id || '',
+      is_available: product.is_available ?? true,
+      images: Array.isArray(product.images) ? [...product.images] : [], // ✅ Deep copy
+      variants: Array.isArray(product.variants) ? [...product.variants] : [], // ✅ Deep copy
     })
     setActiveTab('basic')
     setError('')
     setShowModal(true)
-    }
+  }
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
@@ -84,65 +92,89 @@ export default function AdminProducts() {
     }))
   }
 
-const handleSave = async (e) => {
-  e.preventDefault()
-  if (!form.name.trim()) {
-    setError('Product name is required')
-    setActiveTab('basic')
-    return
-  }
-  if (!form.price) {
-    setError('Price is required')
-    setActiveTab('basic')
-    return
-  }
-
-  setSaving(true)
-  setError('')
-
-  // Calculate total stock from variants
-  const totalStock = form.variants.reduce(
-    (sum, v) => sum + (v.stock_quantity || 0), 0
-  )
-
-  // ✅ Always send images and variants
-  // Backend will replace them properly
-  const payload = {
-    name: form.name,
-    description: form.description,
-    price: parseFloat(form.price),
-    original_price: form.original_price
-      ? parseFloat(form.original_price)
-      : null,
-    category_id: form.category_id || null,
-    image_url: form.images[0]?.url || '',
-    stock_quantity: totalStock,
-    is_available: form.is_available,
-    images: form.images,       // always send
-    variants: form.variants,   // always send
-  }
-
-  try {
-    if (editProduct) {
-      await adminUpdateProduct(editProduct.id, payload)
-    } else {
-      await adminCreateProduct(payload)
+  const handleSave = async (e) => {
+    e.preventDefault()
+    
+    // ✅ Validation
+    if (!form.name.trim()) {
+      setError('Product name is required')
+      setActiveTab('basic')
+      return
     }
-    await loadData()
-    setShowModal(false)
-  } catch (err) {
-    setError(err?.response?.data?.error || 'Failed to save product')
-  } finally {
-    setSaving(false)
+    if (!form.price || parseFloat(form.price) <= 0) {
+      setError('Valid price is required')
+      setActiveTab('basic')
+      return
+    }
+
+    setSaving(true)
+    setError('')
+
+    // ✅ Calculate total stock from variants
+    const totalStock = form.variants.reduce(
+      (sum, v) => sum + (parseInt(v.stock_quantity) || 0), 
+      0
+    )
+
+    // ✅ Prepare payload
+    const payload = {
+      name: form.name.trim(),
+      description: form.description.trim(),
+      price: parseFloat(form.price),
+      original_price: form.original_price 
+        ? parseFloat(form.original_price) 
+        : null,
+      category_id: form.category_id || null,
+      image_url: form.images[0]?.url || '',
+      stock_quantity: totalStock,
+      is_available: form.is_available,
+      images: form.images.map((img, idx) => ({
+        url: img.url,
+        public_id: img.public_id || '',
+        sort_order: img.sort_order ?? idx,
+      })),
+      variants: form.variants.map(v => ({
+        color: v.color.trim(),
+        size: v.size.trim(),
+        stock_quantity: parseInt(v.stock_quantity) || 0,
+      })),
+    }
+
+    console.log('💾 Saving product:', editProduct ? 'UPDATE' : 'CREATE', payload)
+
+    try {
+      if (editProduct) {
+        await adminUpdateProduct(editProduct.id, payload)
+        console.log('✅ Product updated:', editProduct.id)
+      } else {
+        await adminCreateProduct(payload)
+        console.log('✅ Product created')
+      }
+      
+      // ✅ Reload data after save
+      await loadData()
+      setShowModal(false)
+      setForm({ ...emptyForm })
+      setEditProduct(null)
+      
+    } catch (err) {
+      console.error('❌ Save failed:', err)
+      const errorMsg = err?.response?.data?.error || 'Failed to save product'
+      setError(errorMsg)
+    } finally {
+      setSaving(false)
+    }
   }
-}
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this product?')) return
+    if (!window.confirm('Delete this product? This cannot be undone.')) return
+    
     try {
       await adminDeleteProduct(id)
-      await loadData()
-    } catch {
+      console.log('✅ Product deleted:', id)
+      await loadData() // ✅ Reload after delete
+    } catch (err) {
+      console.error('❌ Delete failed:', err)
       alert('Failed to delete product')
     }
   }
@@ -151,8 +183,8 @@ const handleSave = async (e) => {
 
   const tabs = [
     { id: 'basic', label: 'Basic Info' },
-    { id: 'images', label: `Images (${form.images.length})` },
-    { id: 'variants', label: `Variants (${form.variants.length})` },
+    { id: 'images', label: `Images (${form.images?.length || 0})` },
+    { id: 'variants', label: `Variants (${form.variants?.length || 0})` },
   ]
 
   return (
@@ -174,11 +206,18 @@ const handleSave = async (e) => {
         </button>
       </div>
 
+      {/* Error Display */}
+      {error && !showModal && (
+        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 text-sm">
+          {error}
+        </div>
+      )}
+
       {/* Products Table */}
       <div className="bg-white border border-black/10">
         {loading ? (
           <div className="p-12 text-center text-black/30 text-sm">
-            Loading...
+            Loading products...
           </div>
         ) : products.length === 0 ? (
           <div className="p-12 text-center">
@@ -186,11 +225,11 @@ const handleSave = async (e) => {
               No products yet
             </p>
             <p className="text-black/30 text-sm mb-6">
-              Add your first product
+              Add your first product to get started
             </p>
             <button
               onClick={openAdd}
-              className="px-6 py-2.5 bg-black text-white text-xs tracking-widest uppercase"
+              className="px-6 py-2.5 bg-black text-white text-xs tracking-widest uppercase hover:bg-gold hover:text-black transition-colors"
             >
               + Add Product
             </button>
@@ -211,125 +250,143 @@ const handleSave = async (e) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-black/5">
-                {products.map(p => (
-                  <tr
-                    key={p.id}
-                    className="hover:bg-cream transition-colors"
-                  >
-                    {/* Product */}
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={
-                            p.images?.[0]?.url ||
-                            p.image_url ||
-                            `https://picsum.photos/seed/${p.id}/60`
-                          }
-                          alt={p.name}
-                          className="w-12 h-12 object-cover bg-offwhite border border-black/5"
-                          onError={e => e.target.src = 'https://picsum.photos/60'}
-                        />
-                        <div>
-                          <p className="text-sm font-medium text-black">
-                            {p.name}
-                          </p>
-                          {p.category_name && (
-                            <p className="text-[10px] text-black/30 uppercase tracking-wide">
-                              {p.category_name}
+                {products.map(p => {
+                  // ✅ Calculate real-time stock from variants
+                  const displayStock = p.variants?.length > 0
+                    ? p.variants.reduce((sum, v) => sum + (v.stock_quantity || 0), 0)
+                    : p.stock_quantity || 0
+
+                  return (
+                    <tr
+                      key={p.id}
+                      className="hover:bg-cream transition-colors"
+                    >
+                      {/* Product */}
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={
+                              p.images?.[0]?.url ||
+                              p.image_url ||
+                              `https://via.placeholder.com/60?text=${p.name.charAt(0)}`
+                            }
+                            alt={p.name}
+                            className="w-12 h-12 object-cover bg-offwhite border border-black/5"
+                            onError={e => {
+                              e.target.src = `https://via.placeholder.com/60?text=${p.name.charAt(0)}`
+                            }}
+                          />
+                          <div>
+                            <p className="text-sm font-medium text-black">
+                              {p.name}
                             </p>
-                          )}
+                            {p.category_name && (
+                              <p className="text-[10px] text-black/30 uppercase tracking-wide">
+                                {p.category_name}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Price */}
-                    <td className="px-6 py-4">
-                      <p className="text-sm font-medium text-black">
-                        ₹{p.price.toFixed(2)}
-                      </p>
-                      {p.original_price && (
-                        <p className="text-[10px] text-black/30 line-through">
-                          ₹{p.original_price.toFixed(2)}
+                      {/* Price */}
+                      <td className="px-6 py-4">
+                        <p className="text-sm font-medium text-black">
+                          ₹{p.price?.toFixed(2) || '0.00'}
                         </p>
-                      )}
-                    </td>
+                        {p.original_price && (
+                          <p className="text-[10px] text-black/30 line-through">
+                            ₹{p.original_price.toFixed(2)}
+                          </p>
+                        )}
+                      </td>
 
-                    {/* Variants */}
-                    <td className="px-6 py-4">
-                      {p.variants?.length > 0 ? (
-                        <div className="space-y-1">
-                          {/* Unique colors */}
-                          <div className="flex flex-wrap gap-1">
-                            {[...new Set(p.variants.map(v => v.color))].map(c => (
-                              <span
-                                key={c}
-                                className="text-[9px] px-1.5 py-0.5 bg-black/5 text-black/60 uppercase tracking-wide"
-                              >
-                                {c}
-                              </span>
-                            ))}
+                      {/* Variants */}
+                      <td className="px-6 py-4">
+                        {p.variants?.length > 0 ? (
+                          <div className="space-y-1">
+                            {/* Unique colors */}
+                            <div className="flex flex-wrap gap-1">
+                              {[...new Set(p.variants.map(v => v.color))].map(c => (
+                                <span
+                                  key={c}
+                                  className="text-[9px] px-1.5 py-0.5 bg-black/5 text-black/60 uppercase tracking-wide"
+                                >
+                                  {c}
+                                </span>
+                              ))}
+                            </div>
+                            {/* Unique sizes */}
+                            <div className="flex flex-wrap gap-1">
+                              {[...new Set(p.variants.map(v => v.size))].map(s => (
+                                <span
+                                  key={s}
+                                  className="text-[9px] px-1.5 py-0.5 border border-black/10 text-black/40"
+                                >
+                                  {s}
+                                </span>
+                              ))}
+                            </div>
                           </div>
-                          {/* Unique sizes */}
-                          <div className="flex flex-wrap gap-1">
-                            {[...new Set(p.variants.map(v => v.size))].map(s => (
-                              <span
-                                key={s}
-                                className="text-[9px] px-1.5 py-0.5 border border-black/10 text-black/40"
-                              >
-                                {s}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-[10px] text-black/20">
-                          No variants
+                        ) : (
+                          <span className="text-[10px] text-black/20">
+                            No variants
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Stock - ✅ Show calculated stock */}
+                      <td className="px-6 py-4">
+                        <p className={`text-sm font-medium ${
+                          displayStock === 0 ? 'text-red-500' : 'text-black'
+                        }`}>
+                          {displayStock}
+                        </p>
+                        {p.variants?.length > 0 && (
+                          <p className="text-[9px] text-black/30">
+                            {p.variants.length} variants
+                          </p>
+                        )}
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-6 py-4">
+                        <span className={`
+                          text-[10px] px-2.5 py-1 font-medium tracking-widest uppercase
+                          ${p.is_available && displayStock > 0
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {p.is_available && displayStock > 0
+                            ? 'In Stock'
+                            : displayStock === 0
+                              ? 'Out of Stock'
+                              : 'Unavailable'
+                          }
                         </span>
-                      )}
-                    </td>
+                      </td>
 
-                    {/* Stock */}
-                    <td className="px-6 py-4">
-                      <p className="text-sm text-black">
-                        {p.stock_quantity}
-                      </p>
-                    </td>
-
-                    {/* Status */}
-                    <td className="px-6 py-4">
-                      <span className={`
-                        text-[10px] px-2.5 py-1 font-medium tracking-widest uppercase
-                        ${p.is_available && p.stock_quantity > 0
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
-                        }`}
-                      >
-                        {p.is_available && p.stock_quantity > 0
-                          ? 'Available'
-                          : 'Unavailable'
-                        }
-                      </span>
-                    </td>
-
-                    {/* Actions */}
-                    <td className="px-6 py-4">
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => openEdit(p)}
-                          className="text-[10px] tracking-widest uppercase text-black/40 hover:text-black transition-colors font-medium"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(p.id)}
-                          className="text-[10px] tracking-widest uppercase text-red-400 hover:text-red-600 transition-colors font-medium"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      {/* Actions */}
+                      <td className="px-6 py-4">
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => openEdit(p)}
+                            className="text-[10px] tracking-widest uppercase text-black/40 hover:text-black transition-colors font-medium"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(p.id)}
+                            className="text-[10px] tracking-widest uppercase text-red-400 hover:text-red-600 transition-colors font-medium"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -393,6 +450,7 @@ const handleSave = async (e) => {
                         onChange={handleChange}
                         placeholder="e.g. Silk Kurta Set"
                         className={inputClass}
+                        required
                       />
                     </div>
 
@@ -418,11 +476,13 @@ const handleSave = async (e) => {
                         <input
                           name="price"
                           type="number"
+                          step="0.01"
                           value={form.price}
                           onChange={handleChange}
                           placeholder="599"
                           min="0"
                           className={inputClass}
+                          required
                         />
                       </div>
                       <div>
@@ -432,6 +492,7 @@ const handleSave = async (e) => {
                         <input
                           name="original_price"
                           type="number"
+                          step="0.01"
                           value={form.original_price}
                           onChange={handleChange}
                           placeholder="799"
@@ -474,6 +535,18 @@ const handleSave = async (e) => {
                         Available for sale
                       </label>
                     </div>
+
+                    {/* ✅ Stock Preview */}
+                    {form.variants.length > 0 && (
+                      <div className="mt-4 p-3 bg-cream border border-black/10">
+                        <p className="text-[10px] text-black/40 uppercase tracking-widest mb-2">
+                          Total Stock (from variants)
+                        </p>
+                        <p className="text-2xl font-medium text-black">
+                          {form.variants.reduce((sum, v) => sum + (parseInt(v.stock_quantity) || 0), 0)}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -498,7 +571,9 @@ const handleSave = async (e) => {
               {/* Error */}
               {error && (
                 <div className="px-6 pb-2">
-                  <p className="text-red-500 text-xs">{error}</p>
+                  <p className="text-red-500 text-xs bg-red-50 border border-red-200 px-3 py-2">
+                    {error}
+                  </p>
                 </div>
               )}
 
@@ -507,25 +582,29 @@ const handleSave = async (e) => {
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="flex-1 py-3 border border-black/20 text-black text-xs tracking-widest uppercase hover:bg-cream transition-colors"
+                  disabled={saving}
+                  className="flex-1 py-3 border border-black/20 text-black text-xs tracking-widest uppercase hover:bg-cream transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
 
                 {/* Tab navigation */}
-                {activeTab !== 'variants' ? (
+                {activeTab !== 'variants' && (
                   <button
                     type="button"
                     onClick={() => {
                       const order = ['basic', 'images', 'variants']
-                      const next = order[order.indexOf(activeTab) + 1]
-                      setActiveTab(next)
+                      const currentIndex = order.indexOf(activeTab)
+                      if (currentIndex < order.length - 1) {
+                        setActiveTab(order[currentIndex + 1])
+                      }
                     }}
-                    className="flex-1 py-3 border border-black text-black text-xs tracking-widest uppercase hover:bg-black hover:text-white transition-colors"
+                    disabled={saving}
+                    className="flex-1 py-3 border border-black text-black text-xs tracking-widest uppercase hover:bg-black hover:text-white transition-colors disabled:opacity-50"
                   >
                     Next →
                   </button>
-                ) : null}
+                )}
 
                 <button
                   type="submit"
@@ -535,8 +614,8 @@ const handleSave = async (e) => {
                   {saving
                     ? 'Saving...'
                     : editProduct
-                      ? 'Update'
-                      : 'Add Product'
+                      ? 'Update Product'
+                      : 'Create Product'
                   }
                 </button>
               </div>
